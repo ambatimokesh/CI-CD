@@ -1,0 +1,4971 @@
+# TRAVEL EAZY — COMPLETE CI/CD PROJECT DOCUMENTATION
+
+## Project Environment
+
+```text
+AWS Region              : ap-south-1
+EKS Cluster             : travel-easy-cluster
+Kubernetes Namespace    : travel-easy
+Monitoring Namespace    : monitoring
+Docker Hub Username     : mokeshambati
+Docker Image            : mokeshambati/travel-easy
+GitHub Repository       : ambatimokesh/CI-CD
+GitHub Branch           : main
+Application             : Django / Python
+Operating System        : Ubuntu EC2
+```
+
+---
+
+# 1. Project Overview
+
+Travel Eazy is a Django web application deployed as a Docker container on Amazon EKS.
+
+The project implements:
+
+```text
+GitHub
+   ↓
+Jenkins
+   ↓
+Python Tests
+   ↓
+SonarQube
+   ↓
+Trivy
+   ↓
+Docker
+   ↓
+Docker Hub
+   ↓
+Amazon EKS
+   ↓
+Prometheus
+   ↓
+Grafana
+   ↓
+Alertmanager
+   ↓
+Gmail
+```
+
+---
+
+# 2. Project Architecture
+
+```text
+Developer
+   |
+   v
+GitHub
+   |
+   | Webhook
+   v
+Jenkins - Ubuntu EC2
+   |
+   +-- Python Tests
+   +-- SonarQube
+   +-- Trivy
+   +-- Docker Build
+   +-- Docker Hub Push
+   +-- EKS Deployment
+              |
+              v
+       Amazon EKS Cluster
+              |
+       +------+------+
+       |             |
+       v             v
+ Travel Eazy      Monitoring
+ Deployment       Stack
+       |             |
+       v       +-----+-----+------+
+      Pod      |     |     |      |
+       |       v     v     v      v
+       |   Prometheus Grafana Alertmanager
+       |                         |
+       v                         v
+    Service                    Gmail
+       |
+       v
+     Users
+```
+
+---
+
+# 3. Technology Stack
+
+## Application
+
+```text
+Python
+Django
+Gunicorn
+SQLite
+WhiteNoise
+```
+
+## Source Control
+
+```text
+Git
+GitHub
+```
+
+## CI/CD
+
+```text
+Jenkins
+```
+
+## Code Quality
+
+```text
+SonarQube
+```
+
+## Security
+
+```text
+Trivy
+```
+
+## Containerization
+
+```text
+Docker
+Docker Hub
+```
+
+## Cloud
+
+```text
+AWS
+EC2
+IAM
+EKS
+VPC
+Load Balancer
+Auto Scaling
+```
+
+## Kubernetes
+
+```text
+Amazon EKS
+kubectl
+Helm
+```
+
+## Monitoring
+
+```text
+Prometheus
+Grafana
+Alertmanager
+Node Exporter
+kube-state-metrics
+```
+
+---
+
+# 4. AWS Infrastructure
+
+The project uses AWS for:
+
+```text
+EC2
+IAM
+EKS
+Worker Nodes
+VPC
+Security Groups
+Load Balancer
+Auto Scaling
+```
+
+Main architecture:
+
+```text
+Ubuntu EC2
+   |
+   | Jenkins
+   |
+   v
+Amazon EKS
+   |
+   +-- Worker Node 1
+   +-- Worker Node 2
+   |
+   +-- Travel Eazy
+   +-- Monitoring
+```
+
+---
+
+# 5. Ubuntu EC2 Setup
+
+Connect to Ubuntu EC2.
+
+```bash
+ssh -i "YOUR-KEY.pem" ubuntu@YOUR_EC2_PUBLIC_IP
+```
+
+Check user:
+
+```bash
+whoami
+```
+
+Check hostname:
+
+```bash
+hostname
+```
+
+Check OS:
+
+```bash
+cat /etc/os-release
+```
+
+Check kernel:
+
+```bash
+uname -a
+```
+
+Check disk:
+
+```bash
+df -h
+```
+
+Check memory:
+
+```bash
+free -h
+```
+
+Check CPU:
+
+```bash
+nproc
+```
+
+---
+
+# 6. Ubuntu System Update
+
+Update package information:
+
+```bash
+sudo apt update
+```
+
+Upgrade installed packages:
+
+```bash
+sudo apt upgrade -y
+```
+
+Install common packages:
+
+```bash
+sudo apt install -y \
+curl \
+wget \
+git \
+unzip \
+zip \
+ca-certificates \
+gnupg \
+lsb-release \
+software-properties-common \
+apt-transport-https
+```
+
+Verify:
+
+```bash
+git --version
+curl --version
+wget --version
+```
+
+---
+
+# 7. Java JDK 21 Installation
+
+Jenkins requires Java.
+
+Install:
+
+```bash
+sudo apt install -y openjdk-21-jdk
+```
+
+Check:
+
+```bash
+java -version
+```
+
+Check Java path:
+
+```bash
+which java
+```
+
+Check compiler:
+
+```bash
+javac -version
+```
+
+---
+
+# 8. Jenkins Installation
+
+Add Jenkins repository key:
+
+```bash
+sudo mkdir -p /etc/apt/keyrings
+
+sudo wget -O /etc/apt/keyrings/jenkins-keyring.asc \
+https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
+```
+
+Add repository:
+
+```bash
+echo "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] \
+https://pkg.jenkins.io/debian-stable binary/" | \
+sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+```
+
+Update:
+
+```bash
+sudo apt update
+```
+
+Install Jenkins:
+
+```bash
+sudo apt install -y jenkins
+```
+
+Start Jenkins:
+
+```bash
+sudo systemctl start jenkins
+```
+
+Enable at boot:
+
+```bash
+sudo systemctl enable jenkins
+```
+
+Check:
+
+```bash
+sudo systemctl status jenkins
+```
+
+Get initial password if required:
+
+```bash
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+```
+
+Jenkins:
+
+```text
+http://YOUR_EC2_PUBLIC_IP:8080
+```
+
+Check Jenkins version:
+
+```bash
+sudo systemctl status jenkins
+```
+
+---
+
+# 9. Docker Installation
+
+Remove old conflicting packages if present:
+
+```bash
+sudo apt remove -y docker.io docker-doc docker-compose podman-docker containerd runc || true
+```
+
+Install Docker repository prerequisites:
+
+```bash
+sudo apt update
+
+sudo apt install -y ca-certificates curl
+```
+
+Add Docker key:
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+-o /etc/apt/keyrings/docker.asc
+
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+```
+
+Add repository:
+
+```bash
+echo \
+"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+https://download.docker.com/linux/ubuntu \
+$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+```
+
+Install:
+
+```bash
+sudo apt update
+
+sudo apt install -y \
+docker-ce \
+docker-ce-cli \
+containerd.io \
+docker-buildx-plugin \
+docker-compose-plugin
+```
+
+Check:
+
+```bash
+docker --version
+```
+
+Check service:
+
+```bash
+sudo systemctl status docker
+```
+
+Enable:
+
+```bash
+sudo systemctl enable docker
+```
+
+Allow Ubuntu user to use Docker:
+
+```bash
+sudo usermod -aG docker ubuntu
+```
+
+Allow Jenkins to use Docker:
+
+```bash
+sudo usermod -aG docker jenkins
+```
+
+Restart Jenkins:
+
+```bash
+sudo systemctl restart jenkins
+```
+
+Verify Docker:
+
+```bash
+docker ps
+```
+
+If permission error occurs, reconnect to SSH.
+
+---
+
+# 10. Git Installation
+
+Install:
+
+```bash
+sudo apt install -y git
+```
+
+Check:
+
+```bash
+git --version
+```
+
+Configure Git:
+
+```bash
+git config --global user.name "Mokesh Ambati"
+```
+
+Configure email:
+
+```bash
+git config --global user.email "YOUR_GITHUB_EMAIL"
+```
+
+Check:
+
+```bash
+git config --global --list
+```
+
+---
+
+# 11. Trivy Installation
+
+Install prerequisites:
+
+```bash
+sudo apt-get install -y wget gnupg
+```
+
+Add Trivy repository:
+
+```bash
+wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | \
+gpg --dearmor | \
+sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+```
+
+Add repository:
+
+```bash
+echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] \
+https://aquasecurity.github.io/trivy-repo/deb \
+generic main" | \
+sudo tee /etc/apt/sources.list.d/trivy.list
+```
+
+Install:
+
+```bash
+sudo apt update
+sudo apt install -y trivy
+```
+
+Check:
+
+```bash
+trivy --version
+```
+
+Update database:
+
+```bash
+trivy image --download-db-only
+```
+
+---
+
+# 12. AWS CLI Installation
+
+Download AWS CLI:
+
+```bash
+cd /tmp
+
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" \
+-o "awscliv2.zip"
+```
+
+Extract:
+
+```bash
+unzip awscliv2.zip
+```
+
+Install:
+
+```bash
+sudo ./aws/install
+```
+
+Check:
+
+```bash
+aws --version
+```
+
+Check AWS identity:
+
+```bash
+aws sts get-caller-identity
+```
+
+The EC2 IAM role should provide authentication.
+
+---
+
+# 13. kubectl Installation
+
+Download current stable kubectl:
+
+```bash
+curl -LO "https://dl.k8s.io/release/$(curl -L -s \
+https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+```
+
+Install:
+
+```bash
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+```
+
+Check:
+
+```bash
+kubectl version --client
+```
+
+Check location:
+
+```bash
+which kubectl
+```
+
+---
+
+# 14. Helm Installation
+
+Download/install Helm:
+
+```bash
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+```
+
+Check:
+
+```bash
+helm version
+```
+
+Check:
+
+```bash
+which helm
+```
+
+---
+
+# 15. SonarQube Installation
+
+Create Docker volume:
+
+```bash
+docker volume create sonarqube_data
+```
+
+Run SonarQube:
+
+```bash
+docker run -d \
+  --name sonarqube \
+  -p 9000:9000 \
+  -v sonarqube_data:/opt/sonarqube/data \
+  sonarqube:lts-community
+```
+
+Check:
+
+```bash
+docker ps
+```
+
+Check logs:
+
+```bash
+docker logs sonarqube
+```
+
+Follow logs:
+
+```bash
+docker logs -f sonarqube
+```
+
+Open locally on EC2:
+
+```text
+http://localhost:9000
+```
+
+Check port:
+
+```bash
+sudo ss -ltnp | grep 9000
+```
+
+---
+
+# 16. Jenkins Configuration
+
+Open Jenkins:
+
+```text
+http://YOUR_EC2_PUBLIC_IP:8080
+```
+
+Configure:
+
+```text
+Manage Jenkins
+```
+
+Important configuration areas:
+
+```text
+Plugins
+Tools
+Credentials
+System
+SonarQube
+GitHub
+Pipeline
+```
+
+---
+
+# 17. Jenkins Plugins Installation
+
+Install/check these plugins:
+
+```text
+Pipeline
+Git
+GitHub Integration
+Credentials Binding
+Docker Pipeline
+Kubernetes CLI
+SonarQube Scanner
+```
+
+Restart Jenkins if required.
+
+Verify plugins from:
+
+```text
+Manage Jenkins
+→ Plugins
+→ Installed plugins
+```
+
+---
+
+# 18. Jenkins Credentials Configuration
+
+Create Docker Hub credentials.
+
+```text
+Credential ID:
+dockerhub-creds
+```
+
+Type:
+
+```text
+Username with password
+```
+
+Username:
+
+```text
+mokeshambati
+```
+
+Password:
+
+```text
+Docker Hub Access Token
+```
+
+Do not store the actual token in the Jenkinsfile.
+
+---
+
+# 19. SonarQube Configuration in Jenkins
+
+In SonarQube:
+
+```text
+Create Project
+```
+
+Project key:
+
+```text
+travel-easy
+```
+
+Create a SonarQube token.
+
+Store token in Jenkins credentials:
+
+```text
+Credential ID:
+sonarqube-token
+```
+
+In Jenkins:
+
+```text
+Manage Jenkins
+→ System
+→ SonarQube servers
+```
+
+Configure:
+
+```text
+Name:
+SonarQube
+
+Server URL:
+http://localhost:9000
+```
+
+Under tools configure:
+
+```text
+SonarQube Scanner
+```
+
+Installation name:
+
+```text
+SonarScanner
+```
+
+---
+
+# 20. Trivy Configuration
+
+Trivy is installed directly on Ubuntu.
+
+Check:
+
+```bash
+trivy --version
+```
+
+Filesystem scan:
+
+```bash
+trivy fs \
+  --scanners vuln,secret \
+  --severity HIGH,CRITICAL \
+  --exit-code 0 \
+  .
+```
+
+Image scan:
+
+```bash
+trivy image \
+  --severity HIGH,CRITICAL \
+  --exit-code 0 \
+  mokeshambati/travel-easy:TAG
+```
+
+`--exit-code 0` allows the learning pipeline to continue while displaying findings.
+
+---
+
+# 21. Docker Configuration
+
+Check Docker:
+
+```bash
+docker --version
+```
+
+Check service:
+
+```bash
+sudo systemctl status docker
+```
+
+Check Jenkins Docker access:
+
+```bash
+sudo -u jenkins docker ps
+```
+
+If permission fails:
+
+```bash
+sudo usermod -aG docker jenkins
+sudo systemctl restart jenkins
+```
+
+Check:
+
+```bash
+groups jenkins
+```
+
+---
+
+# 22. GitHub Repository Configuration
+
+Repository:
+
+```text
+https://github.com/ambatimokesh/CI-CD
+```
+
+Branch:
+
+```text
+main
+```
+
+Project files:
+
+```text
+Dockerfile
+Jenkinsfile
+README-CICD.md
+requirements.txt
+sonar-project.properties
+manage.py
+db.sqlite3
+app/
+dataset/
+project/
+static/
+templates/
+k8s/
+```
+
+Check local repository:
+
+```bash
+cd ~/CI-CD
+git status
+git remote -v
+git branch
+```
+
+---
+
+# 23. GitHub Webhook Configuration
+
+GitHub:
+
+```text
+Repository
+→ Settings
+→ Webhooks
+→ Add webhook
+```
+
+Payload URL:
+
+```text
+http://YOUR_EC2_PUBLIC_IP:8080/github-webhook/
+```
+
+Content type:
+
+```text
+application/json
+```
+
+Select:
+
+```text
+Just the push event
+```
+
+Save.
+
+Jenkins:
+
+```text
+Build Triggers
+→ GitHub hook trigger for GITScm polling
+```
+
+Pipeline trigger:
+
+```groovy
+triggers {
+    githubPush()
+}
+```
+
+---
+
+# 24. Travel Eazy Application Setup
+
+Project directory:
+
+```bash
+cd ~/CI-CD
+```
+
+Check:
+
+```bash
+ls
+```
+
+Expected:
+
+```text
+Dockerfile
+Jenkinsfile
+README-CICD.md
+requirements.txt
+sonar-project.properties
+manage.py
+db.sqlite3
+app
+dataset
+project
+static
+templates
+k8s
+```
+
+---
+
+# 25. Python Environment Setup
+
+Install Python tools:
+
+```bash
+sudo apt install -y python3 python3-pip python3-venv
+```
+
+Check:
+
+```bash
+python3 --version
+pip3 --version
+```
+
+Create virtual environment:
+
+```bash
+cd ~/CI-CD
+
+python3 -m venv .venv
+```
+
+Activate:
+
+```bash
+source .venv/bin/activate
+```
+
+Upgrade pip:
+
+```bash
+python -m pip install --upgrade pip
+```
+
+Install requirements:
+
+```bash
+pip install -r requirements.txt
+```
+
+Check:
+
+```bash
+pip list
+```
+
+Deactivate:
+
+```bash
+deactivate
+```
+
+---
+
+# 26. requirements.txt
+
+File:
+
+```text
+requirements.txt
+```
+
+Purpose:
+
+Contains Python dependencies.
+
+Jenkins installs them using:
+
+```bash
+pip install -r requirements.txt
+```
+
+Docker also installs them during image build.
+
+---
+
+# 27. Django Application
+
+Check Django:
+
+```bash
+cd ~/CI-CD
+
+source .venv/bin/activate
+
+python manage.py check
+```
+
+Run tests:
+
+```bash
+python manage.py test
+```
+
+Check migrations:
+
+```bash
+python manage.py showmigrations
+```
+
+Run migrations:
+
+```bash
+python manage.py migrate
+```
+
+Collect static files:
+
+```bash
+python manage.py collectstatic --noinput
+```
+
+Local test:
+
+```bash
+python manage.py runserver 0.0.0.0:8000
+```
+
+Stop:
+
+```text
+CTRL + C
+```
+
+---
+
+# 28. Dockerfile
+
+File:
+
+```text
+Dockerfile
+```
+
+Complete Dockerfile:
+
+```dockerfile
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+RUN python manage.py collectstatic --noinput
+
+EXPOSE 8000
+
+CMD ["sh", "-c", "python manage.py migrate && gunicorn project.wsgi:application --bind 0.0.0.0:8000 --workers 2"]
+```
+
+---
+
+# 29. Docker Image Build
+
+From:
+
+```bash
+cd ~/CI-CD
+```
+
+Build:
+
+```bash
+docker build -t mokeshambati/travel-easy:test .
+```
+
+Check:
+
+```bash
+docker images
+```
+
+Run:
+
+```bash
+docker run -d \
+  --name travel-easy-test \
+  -p 8000:8000 \
+  -e ALLOWED_HOSTS="localhost,127.0.0.1" \
+  mokeshambati/travel-easy:test
+```
+
+Check:
+
+```bash
+docker ps
+```
+
+Check logs:
+
+```bash
+docker logs travel-easy-test
+```
+
+Test locally:
+
+```bash
+curl http://localhost:8000
+```
+
+Stop:
+
+```bash
+docker stop travel-easy-test
+```
+
+Remove:
+
+```bash
+docker rm travel-easy-test
+```
+
+---
+
+# 30. Docker Hub Configuration
+
+Docker Hub repository:
+
+```text
+mokeshambati/travel-easy
+```
+
+Login:
+
+```bash
+docker login
+```
+
+Do not place the token in commands or files.
+
+Check:
+
+```bash
+docker info
+```
+
+---
+
+# 31. Docker Hub Image Push
+
+Tag:
+
+```bash
+docker tag \
+  mokeshambati/travel-easy:test \
+  mokeshambati/travel-easy:test
+```
+
+Push:
+
+```bash
+docker push mokeshambati/travel-easy:test
+```
+
+Check:
+
+```bash
+docker images
+```
+
+Jenkins automatically pushes build-number tags such as:
+
+```text
+mokeshambati/travel-easy:1
+mokeshambati/travel-easy:2
+mokeshambati/travel-easy:3
+```
+
+---
+
+# 32. Amazon EKS Cluster
+
+Cluster:
+
+```text
+travel-easy-cluster
+```
+
+Region:
+
+```text
+ap-south-1
+```
+
+Check:
+
+```bash
+aws eks list-clusters --region ap-south-1
+```
+
+Describe:
+
+```bash
+aws eks describe-cluster \
+  --region ap-south-1 \
+  --name travel-easy-cluster
+```
+
+---
+
+# 33. EKS kubeconfig Configuration
+
+Configure:
+
+```bash
+aws eks update-kubeconfig \
+  --region ap-south-1 \
+  --name travel-easy-cluster
+```
+
+Check:
+
+```bash
+kubectl config current-context
+```
+
+Check nodes:
+
+```bash
+kubectl get nodes
+```
+
+Detailed nodes:
+
+```bash
+kubectl get nodes -o wide
+```
+
+---
+
+# 34. EKS Worker Nodes
+
+Check:
+
+```bash
+kubectl get nodes
+```
+
+Detailed:
+
+```bash
+kubectl describe nodes
+```
+
+Resource usage:
+
+```bash
+kubectl top nodes
+```
+
+The project used two worker nodes while running the complete monitoring stack.
+
+---
+
+# 35. Kubernetes Namespace
+
+Create:
+
+```bash
+kubectl create namespace travel-easy
+```
+
+If already exists:
+
+```bash
+kubectl get namespace travel-easy
+```
+
+Monitoring namespace:
+
+```bash
+kubectl create namespace monitoring
+```
+
+Check:
+
+```bash
+kubectl get namespaces
+```
+
+---
+
+# 36. Kubernetes Deployment
+
+The Deployment manages Travel Eazy Pods.
+
+Relationship:
+
+```text
+Deployment
+    |
+    v
+Pod
+    |
+    v
+Container
+    |
+    v
+Django/Gunicorn
+```
+
+Check:
+
+```bash
+kubectl get deployment -n travel-easy
+```
+
+---
+
+# 37. deployment.yaml
+
+File:
+
+```text
+k8s/deployment.yaml
+```
+
+Recommended complete manifest:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: travel-easy
+  namespace: travel-easy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: travel-easy
+  template:
+    metadata:
+      labels:
+        app: travel-easy
+    spec:
+      containers:
+        - name: travel-easy
+          image: mokeshambati/travel-easy:1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: ALLOWED_HOSTS
+              value: "*"
+```
+
+For Jenkins deployment, the image is replaced automatically with the current build image.
+
+---
+
+# 38. Kubernetes Service
+
+The Service exposes the Travel Eazy Pod.
+
+Traffic:
+
+```text
+Load Balancer :80
+       ↓
+Service :80
+       ↓
+Pod :8000
+       ↓
+Gunicorn
+       ↓
+Django
+```
+
+---
+
+# 39. service.yaml
+
+File:
+
+```text
+k8s/service.yaml
+```
+
+Complete:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: travel-easy-service
+  namespace: travel-easy
+spec:
+  type: LoadBalancer
+  selector:
+    app: travel-easy
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+```
+
+---
+
+# 40. Kubernetes Application Deployment
+
+Apply Deployment:
+
+```bash
+kubectl apply -f k8s/deployment.yaml
+```
+
+Apply Service:
+
+```bash
+kubectl apply -f k8s/service.yaml
+```
+
+Check:
+
+```bash
+kubectl get all -n travel-easy
+```
+
+Check Service:
+
+```bash
+kubectl get svc -n travel-easy
+```
+
+Check external address:
+
+```bash
+kubectl get svc travel-easy-service -n travel-easy
+```
+
+Check Pods:
+
+```bash
+kubectl get pods -n travel-easy -o wide
+```
+
+---
+
+# 41. Jenkinsfile
+
+File:
+
+```text
+Jenkinsfile
+```
+
+The Jenkinsfile defines the complete CI/CD pipeline.
+
+---
+
+# 42. Jenkins CI/CD Pipeline
+
+Complete current Jenkinsfile:
+
+```groovy
+pipeline {
+    agent any
+
+    triggers {
+        githubPush()
+    }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
+    environment {
+        AWS_DEFAULT_REGION = 'ap-south-1'
+        AWS_REGION         = 'ap-south-1'
+        EKS_CLUSTER        = 'travel-easy-cluster'
+        K8S_NAMESPACE      = 'travel-easy'
+
+        DOCKERHUB_USERNAME = 'mokeshambati'
+        IMAGE_NAME        = 'travel-easy'
+        IMAGE_TAG         = "${BUILD_NUMBER}"
+        DOCKER_IMAGE       = "mokeshambati/travel-easy:${BUILD_NUMBER}"
+
+        KUBECONFIG = "${WORKSPACE}/jenkins-kubeconfig"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Python Setup') {
+            steps {
+                sh '''
+                    set -e
+
+                    python3 --version
+
+                    python3 -m venv .venv
+
+                    . .venv/bin/activate
+
+                    python -m pip install --upgrade pip
+
+                    pip install -r requirements.txt
+
+                    pip list
+                '''
+            }
+        }
+
+        stage('Django Checks') {
+            steps {
+                sh '''
+                    set -e
+
+                    . .venv/bin/activate
+
+                    python manage.py check
+
+                    python manage.py test
+                '''
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    def scannerHome = tool 'SonarScanner'
+
+                    withSonarQubeEnv('SonarQube') {
+                        sh """
+                            ${scannerHome}/bin/sonar-scanner \
+                              -Dsonar.projectKey=travel-easy \
+                              -Dsonar.projectName="Travel Eazy" \
+                              -Dsonar.sources=app,project \
+                              -Dsonar.python.version=3.11 \
+                              -Dsonar.exclusions="**/migrations/**,**/__pycache__/**,**/static/**,**/templates/**"
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Trivy Filesystem Scan') {
+            steps {
+                sh '''
+                    echo "===== TRIVY FILESYSTEM SECURITY SCAN ====="
+
+                    trivy fs \
+                      --scanners vuln,secret \
+                      --severity HIGH,CRITICAL \
+                      --exit-code 0 \
+                      .
+                '''
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                sh '''
+                    set -e
+
+                    docker build \
+                      -t ${DOCKER_IMAGE} \
+                      .
+
+                    docker images ${DOCKERHUB_USERNAME}/${IMAGE_NAME}
+                '''
+            }
+        }
+
+        stage('Trivy Image Scan') {
+            steps {
+                sh '''
+                    echo "===== TRIVY DOCKER IMAGE SECURITY SCAN ====="
+
+                    trivy image \
+                      --severity HIGH,CRITICAL \
+                      --exit-code 0 \
+                      ${DOCKER_IMAGE}
+                '''
+            }
+        }
+
+        stage('Docker Hub Push') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        set -e
+
+                        echo "$DOCKER_PASSWORD" | \
+                        docker login \
+                          --username "$DOCKER_USER" \
+                          --password-stdin
+
+                        docker push ${DOCKER_IMAGE}
+
+                        docker logout
+                    '''
+                }
+            }
+        }
+
+        stage('Configure EKS') {
+            steps {
+                sh '''
+                    set -e
+
+                    aws sts get-caller-identity
+
+                    aws eks update-kubeconfig \
+                      --region ${AWS_DEFAULT_REGION} \
+                      --name ${EKS_CLUSTER} \
+                      --kubeconfig ${KUBECONFIG}
+
+                    kubectl \
+                      --kubeconfig ${KUBECONFIG} \
+                      get nodes
+                '''
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                sh '''
+                    set -e
+
+                    kubectl \
+                      --kubeconfig ${KUBECONFIG} \
+                      apply \
+                      -f k8s/deployment.yaml
+
+                    kubectl \
+                      --kubeconfig ${KUBECONFIG} \
+                      apply \
+                      -f k8s/service.yaml
+
+                    kubectl \
+                      --kubeconfig ${KUBECONFIG} \
+                      -n ${K8S_NAMESPACE} \
+                      set image deployment/travel-easy \
+                      travel-easy=${DOCKER_IMAGE}
+
+                    kubectl \
+                      --kubeconfig ${KUBECONFIG} \
+                      -n ${K8S_NAMESPACE} \
+                      rollout status deployment/travel-easy \
+                      --timeout=5m
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                    set -e
+
+                    kubectl \
+                      --kubeconfig ${KUBECONFIG} \
+                      get deployment \
+                      -n ${K8S_NAMESPACE}
+
+                    kubectl \
+                      --kubeconfig ${KUBECONFIG} \
+                      get pods \
+                      -n ${K8S_NAMESPACE} \
+                      -o wide
+
+                    kubectl \
+                      --kubeconfig ${KUBECONFIG} \
+                      get svc \
+                      -n ${K8S_NAMESPACE}
+                '''
+            }
+        }
+    }
+
+    post {
+
+        success {
+            echo """
+            ========================================
+            TRAVEL EAZY CI/CD PIPELINE SUCCESSFUL
+            ========================================
+            Docker Image : ${DOCKER_IMAGE}
+            EKS Cluster  : ${EKS_CLUSTER}
+            Namespace    : ${K8S_NAMESPACE}
+            ========================================
+            """
+        }
+
+        failure {
+            echo """
+            ========================================
+            TRAVEL EAZY CI/CD PIPELINE FAILED
+            ========================================
+            Check the failed stage in Jenkins Console Output.
+            ========================================
+            """
+        }
+
+        always {
+            sh '''
+                rm -f "${KUBECONFIG}" || true
+            '''
+        }
+    }
+}
+```
+
+---
+
+# 43. Checkout Stage
+
+Jenkins obtains source code:
+
+```groovy
+checkout scm
+```
+
+Check Jenkins Console Output for:
+
+```text
+git fetch
+git checkout
+```
+
+---
+
+# 44. Python Setup Stage
+
+Creates:
+
+```text
+.venv
+```
+
+Commands:
+
+```bash
+python3 -m venv .venv
+pip install -r requirements.txt
+```
+
+---
+
+# 45. Django Checks Stage
+
+Runs:
+
+```bash
+python manage.py check
+python manage.py test
+```
+
+Purpose:
+
+```text
+Application configuration validation
+Application tests
+```
+
+---
+
+# 46. SonarQube Analysis Stage
+
+Runs:
+
+```text
+sonar-scanner
+```
+
+Project:
+
+```text
+travel-easy
+```
+
+Check results in:
+
+```text
+SonarQube
+→ Projects
+→ Travel Eazy
+```
+
+---
+
+# 47. Trivy Filesystem Scan Stage
+
+Jenkins scans the project directory:
+
+```bash
+trivy fs \
+  --scanners vuln,secret \
+  --severity HIGH,CRITICAL \
+  --exit-code 0 \
+  .
+```
+
+This checks:
+
+```text
+Vulnerabilities
+Secrets
+```
+
+---
+
+# 48. Docker Build Stage
+
+Jenkins builds:
+
+```text
+mokeshambati/travel-easy:BUILD_NUMBER
+```
+
+Check Console Output:
+
+```text
+docker build
+Successfully built
+```
+
+---
+
+# 49. Trivy Image Scan Stage
+
+Jenkins scans the Docker image:
+
+```bash
+trivy image \
+  --severity HIGH,CRITICAL \
+  --exit-code 0 \
+  ${DOCKER_IMAGE}
+```
+
+---
+
+# 50. Docker Hub Push Stage
+
+Jenkins:
+
+```text
+Docker Login
+   ↓
+Docker Push
+   ↓
+Docker Logout
+```
+
+Image:
+
+```text
+mokeshambati/travel-easy:BUILD_NUMBER
+```
+
+---
+
+# 51. Configure EKS Stage
+
+Jenkins checks AWS:
+
+```bash
+aws sts get-caller-identity
+```
+
+Then:
+
+```bash
+aws eks update-kubeconfig \
+  --region ap-south-1 \
+  --name travel-easy-cluster
+```
+
+Then:
+
+```bash
+kubectl get nodes
+```
+
+---
+
+# 52. Deploy to EKS Stage
+
+Apply:
+
+```bash
+kubectl apply -f k8s/deployment.yaml
+```
+
+Apply Service:
+
+```bash
+kubectl apply -f k8s/service.yaml
+```
+
+Update image:
+
+```bash
+kubectl set image \
+  deployment/travel-easy \
+  travel-easy=mokeshambati/travel-easy:BUILD_NUMBER \
+  -n travel-easy
+```
+
+Wait:
+
+```bash
+kubectl rollout status \
+  deployment/travel-easy \
+  -n travel-easy
+```
+
+---
+
+# 53. Verify Deployment Stage
+
+Check Deployment:
+
+```bash
+kubectl get deployment -n travel-easy
+```
+
+Check Pods:
+
+```bash
+kubectl get pods -n travel-easy -o wide
+```
+
+Check Service:
+
+```bash
+kubectl get svc -n travel-easy
+```
+
+Check everything:
+
+```bash
+kubectl get all -n travel-easy
+```
+
+---
+
+# 54. Prometheus Installation
+
+Add repository:
+
+```bash
+helm repo add prometheus-community \
+https://prometheus-community.github.io/helm-charts
+```
+
+Update:
+
+```bash
+helm repo update
+```
+
+Create namespace:
+
+```bash
+kubectl create namespace monitoring
+```
+
+Install:
+
+```bash
+helm install monitoring \
+prometheus-community/kube-prometheus-stack \
+--namespace monitoring
+```
+
+Check:
+
+```bash
+kubectl get pods -n monitoring
+```
+
+---
+
+# 55. Grafana Installation
+
+Grafana is installed as part of:
+
+```text
+kube-prometheus-stack
+```
+
+Check:
+
+```bash
+kubectl get pods -n monitoring
+```
+
+Find Grafana:
+
+```bash
+kubectl get pods -n monitoring | grep grafana
+```
+
+---
+
+# 56. Alertmanager Installation
+
+Alertmanager is also included in:
+
+```text
+kube-prometheus-stack
+```
+
+Check:
+
+```bash
+kubectl get pods -n monitoring | grep alertmanager
+```
+
+Check Service:
+
+```bash
+kubectl get svc -n monitoring | grep alertmanager
+```
+
+---
+
+# 57. Node Exporter
+
+Node Exporter collects node-level metrics.
+
+Check:
+
+```bash
+kubectl get pods -n monitoring | grep node-exporter
+```
+
+---
+
+# 58. kube-state-metrics
+
+kube-state-metrics provides Kubernetes object metrics.
+
+Check:
+
+```bash
+kubectl get pods -n monitoring | grep kube-state
+```
+
+---
+
+# 59. Monitoring Namespace
+
+All monitoring components are placed in:
+
+```text
+monitoring
+```
+
+Check:
+
+```bash
+kubectl get all -n monitoring
+```
+
+---
+
+# 60. Prometheus Configuration
+
+Check Prometheus:
+
+```bash
+kubectl get prometheus -n monitoring
+```
+
+Check:
+
+```bash
+kubectl get servicemonitor -n monitoring
+```
+
+Check targets through port-forwarding.
+
+---
+
+# 61. Grafana Configuration
+
+Get Grafana password:
+
+```bash
+kubectl get secret monitoring-grafana \
+  -n monitoring \
+  -o jsonpath="{.data.admin-password}" | \
+  base64 --decode; echo
+```
+
+Username:
+
+```text
+admin
+```
+
+---
+
+# 62. Grafana Dashboard
+
+Port-forward:
+
+```bash
+kubectl port-forward \
+  svc/monitoring-grafana \
+  3000:80 \
+  -n monitoring
+```
+
+Use SSH tunnel from Windows:
+
+```powershell
+ssh -i "$env:USERPROFILE\Downloads\YOUR-KEY.pem" `
+-L 3000:localhost:3000 `
+ubuntu@YOUR_EC2_PUBLIC_IP
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+Useful panels:
+
+```text
+Travel Eazy CPU
+Travel Eazy Memory
+Travel Eazy Pod Count
+Travel Eazy Pod Status
+EKS Node CPU
+EKS Node Memory
+```
+
+---
+
+# 63. Prometheus Port Forwarding
+
+Run on Ubuntu:
+
+```bash
+kubectl port-forward \
+-n monitoring \
+svc/monitoring-kube-prometheus-prometheus \
+9090:9090
+```
+
+Windows tunnel:
+
+```powershell
+ssh -i "$env:USERPROFILE\Downloads\YOUR-KEY.pem" `
+-L 9090:localhost:9090 `
+ubuntu@YOUR_EC2_PUBLIC_IP
+```
+
+Open:
+
+```text
+http://localhost:9090
+```
+
+---
+
+# 64. Grafana Port Forwarding
+
+Ubuntu:
+
+```bash
+kubectl port-forward \
+svc/monitoring-grafana \
+3000:80 \
+-n monitoring
+```
+
+Windows:
+
+```powershell
+ssh -i "$env:USERPROFILE\Downloads\YOUR-KEY.pem" `
+-L 3000:localhost:3000 `
+ubuntu@YOUR_EC2_PUBLIC_IP
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+---
+
+# 65. Alertmanager Port Forwarding
+
+Ubuntu:
+
+```bash
+kubectl port-forward \
+-n monitoring \
+svc/monitoring-kube-prometheus-alertmanager \
+9093:9093
+```
+
+Windows:
+
+```powershell
+ssh -i "$env:USERPROFILE\Downloads\YOUR-KEY.pem" `
+-L 9093:localhost:9093 `
+ubuntu@YOUR_EC2_PUBLIC_IP
+```
+
+Open:
+
+```text
+http://localhost:9093
+```
+
+---
+
+# 66. PromQL Queries
+
+## Node CPU
+
+```promql
+node_cpu_seconds_total
+```
+
+## Node Memory
+
+```promql
+node_memory_MemAvailable_bytes
+```
+
+## Pod Information
+
+```promql
+kube_pod_info
+```
+
+## Travel Eazy Memory
+
+```promql
+container_memory_working_set_bytes{namespace="travel-easy"}
+```
+
+## Travel Eazy CPU
+
+```promql
+sum(rate(container_cpu_usage_seconds_total{namespace="travel-easy",container!="",container!="POD"}[5m]))
+```
+
+## Pod Count
+
+```promql
+count(kube_pod_info{namespace="travel-easy"})
+```
+
+## Pod Status
+
+```promql
+kube_pod_status_phase{namespace="travel-easy"}
+```
+
+## Node CPU Percentage
+
+```promql
+100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))
+```
+
+## Node Memory Percentage
+
+```promql
+100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+```
+
+## Available Deployment Replicas
+
+```promql
+kube_deployment_status_replicas_available{namespace="travel-easy",deployment="travel-easy"}
+```
+
+## Pod Restarts
+
+```promql
+increase(kube_pod_container_status_restarts_total{namespace="travel-easy"}[10m])
+```
+
+---
+
+# 67. PrometheusRule
+
+The PrometheusRule defines application alerts.
+
+Resource:
+
+```text
+PrometheusRule
+```
+
+Namespace:
+
+```text
+monitoring
+```
+
+---
+
+# 68. travel-easy-alerts.yaml
+
+This is a separate monitoring YAML file.
+
+It was manually created inside Ubuntu.
+
+File:
+
+```text
+travel-easy-alerts.yaml
+```
+
+---
+
+# 69. Creating travel-easy-alerts.yaml Using nano
+
+**WHERE: Ubuntu EC2 terminal**
+
+```bash
+cd ~
+```
+
+Create:
+
+```bash
+nano travel-easy-alerts.yaml
+```
+
+Paste:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: travel-easy-alerts
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: travel-easy.rules
+      rules:
+
+        - alert: TravelEasyPodDown
+          expr: kube_deployment_status_replicas_available{namespace="travel-easy",deployment="travel-easy"} < 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Travel Eazy application is down"
+            description: "No Travel Eazy replica is currently available."
+
+        - alert: TravelEasyHighCPU
+          expr: sum(rate(container_cpu_usage_seconds_total{namespace="travel-easy",container!="",container!="POD"}[5m])) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Travel Eazy CPU usage is high"
+            description: "Travel Eazy CPU usage has exceeded 0.8 CPU cores for 5 minutes."
+
+        - alert: TravelEasyPodRestarting
+          expr: increase(kube_pod_container_status_restarts_total{namespace="travel-easy"}[10m]) > 2
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Travel Eazy pod is restarting"
+            description: "A Travel Eazy container has restarted multiple times."
+```
+
+Save:
+
+```text
+CTRL + O
+ENTER
+CTRL + X
+```
+
+Check:
+
+```bash
+cat travel-easy-alerts.yaml
+```
+
+---
+
+# 70. Applying PrometheusRule YAML
+
+Validate:
+
+```bash
+kubectl apply \
+  --dry-run=client \
+  -f travel-easy-alerts.yaml
+```
+
+Apply:
+
+```bash
+kubectl apply \
+  -f travel-easy-alerts.yaml
+```
+
+Check:
+
+```bash
+kubectl get prometheusrule \
+  -n monitoring
+```
+
+Describe:
+
+```bash
+kubectl describe prometheusrule \
+  travel-easy-alerts \
+  -n monitoring
+```
+
+---
+
+# 71. AlertmanagerConfig
+
+`AlertmanagerConfig` connects matching alerts to email notification.
+
+Important:
+
+The working configuration belongs in the:
+
+```text
+travel-easy
+```
+
+namespace.
+
+---
+
+# 72. Creating AlertmanagerConfig YAML Using nano
+
+This was a **separate YAML file** from `travel-easy-alerts.yaml`.
+
+Create using:
+
+```bash
+nano YOUR-ACTUAL-ALERTMANAGER-CONFIG-FILENAME.yaml
+```
+
+Paste:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: travel-easy-email
+  namespace: travel-easy
+  labels:
+    release: monitoring
+spec:
+  route:
+    receiver: travel-easy-email
+    matchers:
+      - name: alertname
+        matchType: =~
+        value: "TravelEasy.*"
+
+  receivers:
+    - name: travel-easy-email
+      emailConfigs:
+        - to: "YOUR_GMAIL_ADDRESS"
+          from: "YOUR_GMAIL_ADDRESS"
+          smarthost: "smtp.gmail.com:587"
+          authUsername: "YOUR_GMAIL_ADDRESS"
+          authPassword:
+            name: alertmanager-smtp
+            key: smtp-password
+          requireTLS: true
+          sendResolved: true
+```
+
+Save:
+
+```text
+CTRL + O
+ENTER
+CTRL + X
+```
+
+Do not place the actual Gmail App Password inside this YAML.
+
+---
+
+# 73. Applying AlertmanagerConfig YAML
+
+Validate:
+
+```bash
+kubectl apply \
+  --dry-run=client \
+  -f YOUR-ACTUAL-ALERTMANAGER-CONFIG-FILENAME.yaml
+```
+
+Apply:
+
+```bash
+kubectl apply \
+  -f YOUR-ACTUAL-ALERTMANAGER-CONFIG-FILENAME.yaml
+```
+
+Check:
+
+```bash
+kubectl get alertmanagerconfig \
+  -n travel-easy
+```
+
+Describe:
+
+```bash
+kubectl describe alertmanagerconfig \
+  travel-easy-email \
+  -n travel-easy
+```
+
+---
+
+# 74. Gmail SMTP Configuration
+
+Gmail SMTP:
+
+```text
+SMTP Server:
+smtp.gmail.com
+
+Port:
+587
+
+TLS:
+Required
+```
+
+Authentication uses a Gmail App Password.
+
+Do not store the App Password inside GitHub.
+
+---
+
+# 75. Kubernetes SMTP Secret
+
+Secret:
+
+```text
+alertmanager-smtp
+```
+
+Namespace:
+
+```text
+travel-easy
+```
+
+The secret stores:
+
+```text
+smtp-user
+smtp-password
+```
+
+---
+
+# 76. Creating SMTP Secret
+
+**WHERE: Ubuntu EC2 terminal**
+
+```bash
+kubectl create secret generic alertmanager-smtp \
+  -n travel-easy \
+  --from-literal=smtp-user='YOUR_GMAIL_ADDRESS' \
+  --from-literal=smtp-password='NEW_APP_PASSWORD'
+```
+
+Check:
+
+```bash
+kubectl get secret alertmanager-smtp \
+  -n travel-easy
+```
+
+Describe without displaying values:
+
+```bash
+kubectl describe secret \
+  alertmanager-smtp \
+  -n travel-easy
+```
+
+---
+
+# 77. Alertmanager Email Notification
+
+Flow:
+
+```text
+Travel Eazy
+    ↓
+Prometheus
+    ↓
+PrometheusRule
+    ↓
+TravelEasyPodDown
+    ↓
+Alertmanager
+    ↓
+SMTP
+    ↓
+Gmail
+```
+
+Check Alertmanager:
+
+```bash
+kubectl get pods -n monitoring
+```
+
+---
+
+# 78. Alert Testing
+
+Scale application down:
+
+```bash
+kubectl scale deployment travel-easy \
+  -n travel-easy \
+  --replicas=0
+```
+
+Check:
+
+```bash
+kubectl get pods -n travel-easy
+```
+
+Check Deployment:
+
+```bash
+kubectl get deployment \
+  travel-easy \
+  -n travel-easy
+```
+
+Wait for the alert's `for:` duration.
+
+Check Prometheus alerts.
+
+Restore:
+
+```bash
+kubectl scale deployment travel-easy \
+  -n travel-easy \
+  --replicas=1
+```
+
+---
+
+# 79. TravelEasyPodDown Alert
+
+PromQL:
+
+```promql
+kube_deployment_status_replicas_available{namespace="travel-easy",deployment="travel-easy"} < 1
+```
+
+Alert:
+
+```text
+TravelEasyPodDown
+```
+
+Duration:
+
+```text
+2 minutes
+```
+
+Severity:
+
+```text
+critical
+```
+
+---
+
+# 80. High CPU Alert
+
+Alert:
+
+```text
+TravelEasyHighCPU
+```
+
+Condition:
+
+```text
+Travel Eazy CPU > 0.8 CPU cores
+```
+
+Duration:
+
+```text
+5 minutes
+```
+
+Severity:
+
+```text
+warning
+```
+
+---
+
+# 81. Pod Restart Alert
+
+Alert:
+
+```text
+TravelEasyPodRestarting
+```
+
+Condition:
+
+```text
+More than 2 restarts within 10 minutes
+```
+
+Duration:
+
+```text
+2 minutes
+```
+
+Severity:
+
+```text
+warning
+```
+
+---
+
+# 82. Jenkins Automatic Trigger
+
+Jenkins is triggered by GitHub webhook.
+
+Pipeline:
+
+```text
+Git Push
+   ↓
+GitHub Webhook
+   ↓
+Jenkins
+   ↓
+Travel-Eazy-CI-CD
+   ↓
+Pipeline
+```
+
+---
+
+# 83. GitHub Push to Jenkins
+
+Check Git:
+
+```bash
+cd ~/CI-CD
+git status
+```
+
+Add:
+
+```bash
+git add .
+```
+
+Commit:
+
+```bash
+git commit -m "Update Travel Eazy CI/CD"
+```
+
+Push:
+
+```bash
+git push origin main
+```
+
+GitHub sends the webhook.
+
+Jenkins starts automatically.
+
+---
+
+# 84. Jenkins to Docker Hub
+
+Jenkins:
+
+```text
+Docker Build
+      ↓
+Trivy Image Scan
+      ↓
+Docker Login
+      ↓
+Docker Push
+```
+
+Image:
+
+```text
+mokeshambati/travel-easy:BUILD_NUMBER
+```
+
+---
+
+# 85. Jenkins to EKS
+
+Jenkins:
+
+```text
+AWS IAM Role
+     ↓
+AWS CLI
+     ↓
+EKS kubeconfig
+     ↓
+kubectl
+     ↓
+Kubernetes Deployment
+```
+
+Check:
+
+```bash
+kubectl get deployment -n travel-easy
+```
+
+---
+
+# 86. EKS Application Verification
+
+Check:
+
+```bash
+kubectl get all -n travel-easy
+```
+
+Check Pods:
+
+```bash
+kubectl get pods -n travel-easy -o wide
+```
+
+Check Service:
+
+```bash
+kubectl get svc -n travel-easy
+```
+
+Check endpoints:
+
+```bash
+kubectl get endpoints -n travel-easy
+```
+
+Check Deployment:
+
+```bash
+kubectl describe deployment \
+  travel-easy \
+  -n travel-easy
+```
+
+Check Pod logs:
+
+```bash
+kubectl logs \
+  -n travel-easy \
+  deployment/travel-easy
+```
+
+---
+
+# 87. Monitoring Verification
+
+Check monitoring Pods:
+
+```bash
+kubectl get pods -n monitoring
+```
+
+Check Services:
+
+```bash
+kubectl get svc -n monitoring
+```
+
+Check Deployments:
+
+```bash
+kubectl get deployments -n monitoring
+```
+
+Check StatefulSets:
+
+```bash
+kubectl get statefulsets -n monitoring
+```
+
+---
+
+# 88. Prometheus Verification
+
+Check:
+
+```bash
+kubectl get prometheus -n monitoring
+```
+
+Check Pod:
+
+```bash
+kubectl get pods -n monitoring | grep prometheus
+```
+
+Check Prometheus targets through:
+
+```text
+http://localhost:9090/targets
+```
+
+Targets should show healthy/UP targets where applicable.
+
+---
+
+# 89. Grafana Verification
+
+Get password:
+
+```bash
+kubectl get secret monitoring-grafana \
+-n monitoring \
+-o jsonpath="{.data.admin-password}" | \
+base64 --decode; echo
+```
+
+Port-forward:
+
+```bash
+kubectl port-forward \
+svc/monitoring-grafana \
+3000:80 \
+-n monitoring
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+Check dashboards and metrics.
+
+---
+
+# 90. Alertmanager Verification
+
+Check:
+
+```bash
+kubectl get pods -n monitoring | grep alertmanager
+```
+
+Check:
+
+```bash
+kubectl get alertmanager -n monitoring
+```
+
+Check logs:
+
+```bash
+kubectl logs \
+-n monitoring \
+alertmanager-monitoring-kube-prometheus-alertmanager-0
+```
+
+Check alerts:
+
+```bash
+kubectl exec \
+-n monitoring \
+alertmanager-monitoring-kube-prometheus-alertmanager-0 \
+-- amtool \
+--alertmanager.url=http://localhost:9093 \
+alert query
+```
+
+---
+
+# 91. Gmail Alert Verification
+
+Successful email metrics can be checked with:
+
+```bash
+kubectl exec \
+-n monitoring \
+alertmanager-monitoring-kube-prometheus-alertmanager-0 \
+-- wget -qO- http://localhost:9093/metrics | \
+grep alertmanager_notifications_total
+```
+
+Check failed notifications:
+
+```bash
+kubectl exec \
+-n monitoring \
+alertmanager-monitoring-kube-prometheus-alertmanager-0 \
+-- wget -qO- http://localhost:9093/metrics | \
+grep alertmanager_notification_requests_failed_total
+```
+
+A successful notification should increase:
+
+```text
+alertmanager_notifications_total
+```
+
+Failed notifications should remain:
+
+```text
+0
+```
+
+---
+
+# 92. Kubernetes Troubleshooting
+
+Check everything:
+
+```bash
+kubectl get all -n travel-easy
+```
+
+Pod details:
+
+```bash
+kubectl describe pod POD_NAME -n travel-easy
+```
+
+Pod logs:
+
+```bash
+kubectl logs POD_NAME -n travel-easy
+```
+
+Previous container logs:
+
+```bash
+kubectl logs POD_NAME -n travel-easy --previous
+```
+
+Events:
+
+```bash
+kubectl get events \
+  -n travel-easy \
+  --sort-by=.lastTimestamp
+```
+
+---
+
+# 93. Jenkins Troubleshooting
+
+Check:
+
+```bash
+sudo systemctl status jenkins
+```
+
+Logs:
+
+```bash
+sudo journalctl -u jenkins -n 100
+```
+
+Follow:
+
+```bash
+sudo journalctl -u jenkins -f
+```
+
+Check port:
+
+```bash
+sudo ss -ltnp | grep 8080
+```
+
+---
+
+# 94. Docker Troubleshooting
+
+Check:
+
+```bash
+docker ps
+```
+
+Check images:
+
+```bash
+docker images
+```
+
+Check logs:
+
+```bash
+docker logs CONTAINER_NAME
+```
+
+Check Docker service:
+
+```bash
+sudo systemctl status docker
+```
+
+Check disk:
+
+```bash
+docker system df
+```
+
+Check Docker daemon:
+
+```bash
+sudo journalctl -u docker -n 100
+```
+
+---
+
+# 95. Trivy Troubleshooting
+
+Check:
+
+```bash
+trivy --version
+```
+
+Update database:
+
+```bash
+trivy image --download-db-only
+```
+
+Filesystem test:
+
+```bash
+cd ~/CI-CD
+
+trivy fs \
+--scanners vuln,secret \
+--severity HIGH,CRITICAL \
+.
+```
+
+Image test:
+
+```bash
+trivy image \
+--severity HIGH,CRITICAL \
+mokeshambati/travel-easy:TAG
+```
+
+---
+
+# 96. SonarQube Troubleshooting
+
+Check container:
+
+```bash
+docker ps | grep sonarqube
+```
+
+Logs:
+
+```bash
+docker logs sonarqube
+```
+
+Check port:
+
+```bash
+sudo ss -ltnp | grep 9000
+```
+
+Restart:
+
+```bash
+docker restart sonarqube
+```
+
+---
+
+# 97. EKS Troubleshooting
+
+Check cluster:
+
+```bash
+aws eks describe-cluster \
+--region ap-south-1 \
+--name travel-easy-cluster
+```
+
+Check nodes:
+
+```bash
+kubectl get nodes
+```
+
+Check node details:
+
+```bash
+kubectl describe nodes
+```
+
+Check context:
+
+```bash
+kubectl config current-context
+```
+
+Update kubeconfig:
+
+```bash
+aws eks update-kubeconfig \
+--region ap-south-1 \
+--name travel-easy-cluster
+```
+
+---
+
+# 98. Prometheus Troubleshooting
+
+Check:
+
+```bash
+kubectl get pods -n monitoring
+```
+
+Check Prometheus:
+
+```bash
+kubectl get prometheus -n monitoring
+```
+
+Check logs:
+
+```bash
+kubectl logs \
+-n monitoring \
+prometheus-monitoring-kube-prometheus-prometheus-0 \
+-c prometheus
+```
+
+Check rules:
+
+```bash
+kubectl get prometheusrule -n monitoring
+```
+
+---
+
+# 99. Grafana Troubleshooting
+
+Check Pod:
+
+```bash
+kubectl get pods -n monitoring | grep grafana
+```
+
+Logs:
+
+```bash
+kubectl logs \
+-n monitoring \
+deployment/monitoring-grafana
+```
+
+Check Service:
+
+```bash
+kubectl get svc monitoring-grafana \
+-n monitoring
+```
+
+Check port:
+
+```bash
+kubectl port-forward \
+svc/monitoring-grafana \
+3000:80 \
+-n monitoring
+```
+
+---
+
+# 100. Alertmanager Troubleshooting
+
+Check:
+
+```bash
+kubectl get alertmanager -n monitoring
+```
+
+Check configuration:
+
+```bash
+kubectl get alertmanagerconfig \
+-n travel-easy
+```
+
+Describe:
+
+```bash
+kubectl describe alertmanagerconfig \
+travel-easy-email \
+-n travel-easy
+```
+
+Check Secret:
+
+```bash
+kubectl get secret \
+alertmanager-smtp \
+-n travel-easy
+```
+
+Check logs:
+
+```bash
+kubectl logs \
+-n monitoring \
+alertmanager-monitoring-kube-prometheus-alertmanager-0
+```
+
+---
+
+# 101. Complete Ubuntu Files
+
+Main project:
+
+```text
+~/CI-CD/
+```
+
+Application:
+
+```text
+manage.py
+db.sqlite3
+requirements.txt
+Dockerfile
+```
+
+CI/CD:
+
+```text
+Jenkinsfile
+sonar-project.properties
+README-CICD.md
+```
+
+Application directories:
+
+```text
+app/
+dataset/
+project/
+static/
+templates/
+```
+
+Kubernetes:
+
+```text
+k8s/
+├── deployment.yaml
+└── service.yaml
+```
+
+---
+
+# 102. Complete GitHub Files
+
+```text
+CI-CD/
+│
+├── Dockerfile
+├── Jenkinsfile
+├── README-CICD.md
+├── requirements.txt
+├── sonar-project.properties
+├── manage.py
+├── db.sqlite3
+│
+├── app/
+├── dataset/
+├── project/
+├── static/
+├── templates/
+│
+└── k8s/
+    ├── deployment.yaml
+    └── service.yaml
+```
+
+---
+
+# 103. Complete Kubernetes YAML Files
+
+## Application YAML
+
+```text
+k8s/deployment.yaml
+k8s/service.yaml
+```
+
+## Monitoring YAML
+
+```text
+travel-easy-alerts.yaml
+```
+
+## Alertmanager YAML
+
+```text
+YOUR-ACTUAL-ALERTMANAGER-CONFIG-FILENAME.yaml
+```
+
+These monitoring YAML files were created separately using `nano`.
+
+---
+
+# 104. Complete nano-Created Files
+
+## PrometheusRule
+
+```bash
+nano travel-easy-alerts.yaml
+```
+
+## AlertmanagerConfig
+
+```bash
+nano YOUR-ACTUAL-ALERTMANAGER-CONFIG-FILENAME.yaml
+```
+
+The exact AlertmanagerConfig filename should be documented using the actual filename you used on Ubuntu.
+
+Check current home-directory files:
+
+```bash
+ls -la ~
+```
+
+Search YAML files:
+
+```bash
+find ~ -maxdepth 2 -type f \
+\( -name "*.yaml" -o -name "*.yml" \) \
+-print
+```
+
+---
+
+# 105. Kubernetes Secrets
+
+SMTP Secret:
+
+```text
+alertmanager-smtp
+```
+
+Check:
+
+```bash
+kubectl get secrets -n travel-easy
+```
+
+Describe:
+
+```bash
+kubectl describe secret \
+alertmanager-smtp \
+-n travel-easy
+```
+
+Never commit the secret value to GitHub.
+
+---
+
+# 106. Important Commands
+
+## Project
+
+```bash
+cd ~/CI-CD
+ls
+git status
+```
+
+## Docker
+
+```bash
+docker ps
+docker images
+docker logs CONTAINER
+```
+
+## AWS
+
+```bash
+aws sts get-caller-identity
+aws eks list-clusters --region ap-south-1
+```
+
+## Kubernetes
+
+```bash
+kubectl get nodes
+kubectl get pods -A
+kubectl get svc -A
+```
+
+## Travel Eazy
+
+```bash
+kubectl get all -n travel-easy
+```
+
+## Monitoring
+
+```bash
+kubectl get all -n monitoring
+```
+
+---
+
+# 107. Verification Commands
+
+## Ubuntu
+
+```bash
+java -version
+docker --version
+git --version
+trivy --version
+aws --version
+kubectl version --client
+helm version
+```
+
+## Jenkins
+
+```bash
+sudo systemctl status jenkins
+```
+
+## Docker
+
+```bash
+docker ps
+```
+
+## AWS
+
+```bash
+aws sts get-caller-identity
+```
+
+## EKS
+
+```bash
+kubectl get nodes
+```
+
+## Application
+
+```bash
+kubectl get all -n travel-easy
+```
+
+## Monitoring
+
+```bash
+kubectl get pods -n monitoring
+```
+
+## Alerts
+
+```bash
+kubectl get prometheusrule -n monitoring
+kubectl get alertmanagerconfig -n travel-easy
+```
+
+---
+
+# 108. Screenshot Checklist
+
+Capture screenshots before deleting resources.
+
+Recommended evidence:
+
+```text
+Jenkins Successful Pipeline
+Jenkins Stage View
+Jenkins Console Output
+SonarQube
+Trivy Filesystem Scan
+Trivy Image Scan
+Docker Hub
+EKS Nodes
+EKS Pods
+EKS Service
+Grafana Dashboard
+Prometheus Targets
+Prometheus Alerts
+Alertmanager
+Gmail Alert
+```
+
+---
+
+# 109. Jenkins Screenshots
+
+Capture:
+
+```text
+Jenkins Dashboard
+Travel-Eazy-CI-CD Job
+Successful Build
+Pipeline Stage View
+Console Output
+```
+
+Important Console Output sections:
+
+```text
+Checkout
+Django Checks
+SonarQube
+Trivy
+Docker Build
+Docker Hub Push
+EKS Deployment
+Verification
+```
+
+---
+
+# 110. SonarQube Screenshots
+
+Capture:
+
+```text
+SonarQube Projects
+Travel Eazy Project
+Code Quality
+Bugs
+Vulnerabilities
+Code Smells
+Security
+```
+
+---
+
+# 111. Trivy Screenshots
+
+Capture two screenshots.
+
+## Filesystem scan
+
+Jenkins Console Output around:
+
+```text
+===== TRIVY FILESYSTEM SECURITY SCAN =====
+```
+
+## Image scan
+
+Jenkins Console Output around:
+
+```text
+===== TRIVY DOCKER IMAGE SECURITY SCAN =====
+```
+
+These demonstrate that Trivy scanning was integrated into CI/CD.
+
+---
+
+# 112. Docker Hub Screenshots
+
+Capture:
+
+```text
+Docker Hub Repository
+mokeshambati/travel-easy
+```
+
+Show:
+
+```text
+Tags
+Build Numbers
+Image
+```
+
+---
+
+# 113. EKS Screenshots
+
+Capture:
+
+```bash
+kubectl get nodes
+```
+
+Also:
+
+```bash
+kubectl get pods -n travel-easy
+```
+
+And:
+
+```bash
+kubectl get svc -n travel-easy
+```
+
+---
+
+# 114. Grafana Screenshots
+
+Capture:
+
+```text
+Travel Eazy Dashboard
+CPU
+Memory
+Pod Count
+Pod Status
+Node CPU
+Node Memory
+```
+
+---
+
+# 115. Prometheus Screenshots
+
+Capture:
+
+```text
+Prometheus Targets
+Prometheus Graph
+Prometheus Alerts
+Travel Eazy Metrics
+```
+
+Important query:
+
+```promql
+kube_deployment_status_replicas_available{namespace="travel-easy",deployment="travel-easy"}
+```
+
+---
+
+# 116. Alertmanager Screenshots
+
+Capture:
+
+```text
+Alertmanager UI
+Active Alerts
+Resolved Alerts
+```
+
+---
+
+# 117. Gmail Alert Screenshots
+
+Capture:
+
+```text
+Travel Eazy Alert Firing Email
+Travel Eazy Alert Resolved Email
+```
+
+Do not expose passwords or sensitive credentials in screenshots.
+
+---
+
+# 118. Security Checklist
+
+Do not commit:
+
+```text
+AWS Access Key
+AWS Secret Key
+GitHub Token
+Docker Hub Token
+Gmail App Password
+Django SECRET_KEY
+Kubernetes Password
+SMTP Password
+```
+
+Use:
+
+```text
+IAM Role
+Jenkins Credentials
+Kubernetes Secrets
+Environment Variables
+```
+
+---
+
+# 119. GitHub Secret Check
+
+From:
+
+```bash
+cd ~/CI-CD
+```
+
+Check status:
+
+```bash
+git status
+```
+
+Search password:
+
+```bash
+git grep -n -i "password"
+```
+
+Search secret:
+
+```bash
+git grep -n -i "secret"
+```
+
+Search token:
+
+```bash
+git grep -n -i "token"
+```
+
+Check AWS keys:
+
+```bash
+git grep -n -E "AKIA|ASIA"
+```
+
+Review changed files:
+
+```bash
+git diff
+```
+
+---
+
+# 120. AWS Resource Verification
+
+Check clusters:
+
+```bash
+aws eks list-clusters \
+--region ap-south-1
+```
+
+Check EC2:
+
+```bash
+aws ec2 describe-instances \
+--region ap-south-1 \
+--filters "Name=instance-state-name,Values=running,stopped" \
+--query 'Reservations[].Instances[].{ID:InstanceId,Name:Tags[?Key==`Name`]|[0].Value,State:State.Name,Type:InstanceType,PublicIP:PublicIpAddress}' \
+--output table
+```
+
+Check NAT gateways:
+
+```bash
+aws ec2 describe-nat-gateways \
+--region ap-south-1 \
+--filter Name=state,Values=available,pending \
+--query 'NatGateways[].{ID:NatGatewayId,State:State,VPC:VpcId}' \
+--output table
+```
+
+Check Elastic IPs:
+
+```bash
+aws ec2 describe-addresses \
+--region ap-south-1 \
+--query 'Addresses[].{IP:PublicIp,AllocationId:AllocationId,Instance:InstanceId}' \
+--output table
+```
+
+---
+
+# 121. Project Cleanup
+
+Before cleanup:
+
+```text
+Save GitHub code
+Save screenshots
+Save architecture diagram
+Save Jenkins evidence
+Save Grafana evidence
+Save Prometheus evidence
+Save Gmail evidence
+```
+
+Then remove project resources carefully.
+
+---
+
+# 122. EKS Cleanup
+
+If the cluster is no longer required:
+
+```bash
+aws eks delete-cluster \
+--region ap-south-1 \
+--name travel-easy-cluster
+```
+
+Check:
+
+```bash
+aws eks list-clusters \
+--region ap-south-1
+```
+
+Do not delete the cluster if it is still required for practice.
+
+---
+
+# 123. EC2 Cleanup
+
+Identify Jenkins EC2:
+
+```bash
+aws ec2 describe-instances \
+--region ap-south-1 \
+--filters "Name=instance-state-name,Values=running,stopped" \
+--output table
+```
+
+If no longer needed, terminate the correct Jenkins EC2 instance.
+
+---
+
+# 124. Load Balancer Cleanup
+
+After EKS/application deletion, verify:
+
+```text
+EC2
+→ Load Balancers
+```
+
+Check for project-related load balancers.
+
+Only delete resources belonging to this project.
+
+---
+
+# 125. NAT Gateway Cleanup
+
+Check:
+
+```bash
+aws ec2 describe-nat-gateways \
+--region ap-south-1 \
+--filter Name=state,Values=available,pending
+```
+
+Delete only the project-specific NAT Gateway.
+
+NAT Gateway can generate charges while running.
+
+---
+
+# 126. Elastic IP Cleanup
+
+Check:
+
+```bash
+aws ec2 describe-addresses \
+--region ap-south-1
+```
+
+Release only unused project Elastic IPs.
+
+---
+
+# 127. EBS Cleanup
+
+Check:
+
+```bash
+aws ec2 describe-volumes \
+--region ap-south-1 \
+--filters Name=status,Values=available \
+--output table
+```
+
+Delete only confirmed unused volumes.
+
+---
+
+# 128. AWS Billing Verification
+
+Open:
+
+```text
+AWS Console
+→ Billing and Cost Management
+```
+
+Check:
+
+```text
+Current charges
+EC2
+EKS
+EBS
+Elastic IP
+NAT Gateway
+Load Balancer
+Data transfer
+```
+
+---
+
+# 129. Final Project Verification
+
+Before final submission:
+
+```bash
+cd ~/CI-CD
+```
+
+Check:
+
+```bash
+git status
+```
+
+Check:
+
+```bash
+git log --oneline -5
+```
+
+Check:
+
+```bash
+git remote -v
+```
+
+Check application:
+
+```bash
+kubectl get all -n travel-easy
+```
+
+Check monitoring:
+
+```bash
+kubectl get pods -n monitoring
+```
+
+Check alerts:
+
+```bash
+kubectl get prometheusrule -n monitoring
+kubectl get alertmanagerconfig -n travel-easy
+```
+
+---
+
+# 130. Final Project File Structure
+
+```text
+CI-CD/
+│
+├── Dockerfile
+├── Jenkinsfile
+├── README-CICD.md
+├── requirements.txt
+├── sonar-project.properties
+│
+├── manage.py
+├── db.sqlite3
+│
+├── app/
+│
+├── dataset/
+│
+├── project/
+│
+├── static/
+│
+├── templates/
+│
+└── k8s/
+    ├── deployment.yaml
+    └── service.yaml
+```
+
+Ubuntu monitoring files:
+
+```text
+/home/ubuntu/
+│
+├── CI-CD/
+│
+├── travel-easy-alerts.yaml
+│
+└── YOUR-ACTUAL-ALERTMANAGER-CONFIG-FILENAME.yaml
+```
+
+---
+
+# 131. Final Project Architecture
+
+```text
+                         GITHUB
+                            |
+                            | Push
+                            v
+                    GitHub Webhook
+                            |
+                            v
+                +----------------------+
+                | Jenkins Ubuntu EC2   |
+                |                      |
+                | Python Tests         |
+                | SonarQube            |
+                | Trivy                |
+                | Docker               |
+                | AWS CLI              |
+                | kubectl              |
+                +----------+-----------+
+                           |
+                           v
+                      Docker Hub
+                           |
+                           v
+                +----------------------+
+                |     Amazon EKS       |
+                |                      |
+                | travel-easy          |
+                |                      |
+                | Deployment           |
+                |      |               |
+                |      v               |
+                |     Pod              |
+                |      |               |
+                |      v               |
+                |    Django            |
+                |      |               |
+                |      v               |
+                |    Service           |
+                |                      |
+                | monitoring            |
+                |      |               |
+                |  +---+---+---+       |
+                |  |   |   |   |       |
+                |  v   v   v   v       |
+                | Prom Graf Alert Node  |
+                |       |               |
+                +-------|---------------+
+                        |
+                        v
+                      Gmail
+```
+
+---
+
+# 132. Resume Project Description
+
+**Travel Eazy — Cloud-Native CI/CD Deployment and Monitoring**
+
+* Containerized a Django-based Travel Eazy application using Docker and deployed it on Amazon EKS.
+* Implemented an automated Jenkins CI/CD pipeline integrated with GitHub for source checkout, Django validation, Docker image creation, Docker Hub publishing, and Kubernetes deployment.
+* Integrated SonarQube for automated code-quality analysis and Trivy for filesystem and Docker image security scanning.
+* Configured Amazon EKS deployment and service manifests for Kubernetes-based application delivery.
+* Implemented Prometheus and Grafana monitoring with application, pod, and node-level metrics.
+* Configured PrometheusRule and Alertmanager for application availability, CPU, and pod-restart alerts with Gmail notifications.
+* Used AWS IAM role-based authentication for Jenkins-to-EKS access without storing long-lived AWS credentials.
+
+---
+
+# 133. Interview Explanation
+
+## Project Introduction
+
+```text
+I developed a Django-based Travel Eazy application and implemented a complete
+CI/CD workflow using GitHub, Jenkins, Docker, SonarQube, Trivy, Docker Hub,
+and Amazon EKS.
+```
+
+## CI/CD
+
+```text
+Whenever code is pushed to GitHub, a webhook triggers Jenkins.
+Jenkins checks out the code, installs Python dependencies, runs Django checks
+and tests, performs SonarQube analysis, scans the source using Trivy, builds
+the Docker image, scans the image, pushes it to Docker Hub, and deploys the
+image to Amazon EKS.
+```
+
+## Kubernetes
+
+```text
+The application runs inside a Kubernetes Deployment in the travel-easy
+namespace. A LoadBalancer Service exposes port 80 and forwards traffic to
+the application container on port 8000.
+```
+
+## Monitoring
+
+```text
+Prometheus collects Kubernetes and application-related metrics.
+Grafana displays the metrics through dashboards.
+Alertmanager handles alerts generated by Prometheus and sends email
+notifications through Gmail SMTP.
+```
+
+---
+
+# 134. Project Skills
+
+```text
+AWS
+Amazon EC2
+Amazon EKS
+IAM
+VPC
+Docker
+Docker Hub
+Kubernetes
+kubectl
+Helm
+Jenkins
+CI/CD
+Git
+GitHub
+GitHub Webhooks
+SonarQube
+Trivy
+Prometheus
+Grafana
+Alertmanager
+Gmail SMTP
+Python
+Django
+Gunicorn
+Linux
+Ubuntu
+YAML
+PromQL
+```
+
+---
+
+# 135. Complete Command Reference
+
+## Ubuntu
+
+```bash
+sudo apt update
+sudo apt upgrade -y
+whoami
+hostname
+cat /etc/os-release
+df -h
+free -h
+nproc
+```
+
+## Java
+
+```bash
+java -version
+javac -version
+```
+
+## Jenkins
+
+```bash
+sudo systemctl status jenkins
+sudo systemctl restart jenkins
+sudo journalctl -u jenkins -n 100
+sudo journalctl -u jenkins -f
+```
+
+## Docker
+
+```bash
+docker --version
+docker ps
+docker images
+docker build -t mokeshambati/travel-easy:test .
+docker logs CONTAINER
+docker stop CONTAINER
+docker rm CONTAINER
+docker system df
+```
+
+## Git
+
+```bash
+git --version
+git status
+git add .
+git commit -m "message"
+git push origin main
+git pull
+git log --oneline -5
+git remote -v
+git branch
+```
+
+## Trivy
+
+```bash
+trivy --version
+trivy fs .
+trivy image IMAGE
+trivy image --download-db-only
+```
+
+## AWS
+
+```bash
+aws --version
+aws sts get-caller-identity
+aws eks list-clusters --region ap-south-1
+aws eks describe-cluster --region ap-south-1 --name travel-easy-cluster
+```
+
+## kubectl
+
+```bash
+kubectl version --client
+kubectl get nodes
+kubectl get nodes -o wide
+kubectl get pods -A
+kubectl get svc -A
+kubectl get namespaces
+kubectl get all -n travel-easy
+kubectl get all -n monitoring
+```
+
+## EKS kubeconfig
+
+```bash
+aws eks update-kubeconfig \
+--region ap-south-1 \
+--name travel-easy-cluster
+```
+
+## Kubernetes application
+
+```bash
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+kubectl get deployment -n travel-easy
+kubectl get pods -n travel-easy
+kubectl get svc -n travel-easy
+kubectl get endpoints -n travel-easy
+kubectl rollout status deployment/travel-easy -n travel-easy
+```
+
+## Kubernetes logs
+
+```bash
+kubectl logs POD -n travel-easy
+kubectl describe pod POD -n travel-easy
+kubectl get events -n travel-easy --sort-by=.lastTimestamp
+```
+
+## Helm
+
+```bash
+helm version
+helm repo list
+helm repo update
+helm list -A
+```
+
+## Monitoring
+
+```bash
+kubectl get pods -n monitoring
+kubectl get svc -n monitoring
+kubectl get prometheus -n monitoring
+kubectl get alertmanager -n monitoring
+kubectl get prometheusrule -n monitoring
+kubectl get alertmanagerconfig -n travel-easy
+```
+
+## Grafana
+
+```bash
+kubectl port-forward \
+svc/monitoring-grafana \
+3000:80 \
+-n monitoring
+```
+
+## Prometheus
+
+```bash
+kubectl port-forward \
+-n monitoring \
+svc/monitoring-kube-prometheus-prometheus \
+9090:9090
+```
+
+## Alertmanager
+
+```bash
+kubectl port-forward \
+-n monitoring \
+svc/monitoring-kube-prometheus-alertmanager \
+9093:9093
+```
+
+## Alert testing
+
+```bash
+kubectl scale deployment travel-easy \
+-n travel-easy \
+--replicas=0
+```
+
+Restore:
+
+```bash
+kubectl scale deployment travel-easy \
+-n travel-easy \
+--replicas=1
+```
+
+## Alertmanager query
+
+```bash
+kubectl exec \
+-n monitoring \
+alertmanager-monitoring-kube-prometheus-alertmanager-0 \
+-- amtool \
+--alertmanager.url=http://localhost:9093 \
+alert query
+```
+
+## Files
+
+```bash
+ls
+ls -la
+find ~ -maxdepth 2 -type f -name "*.yaml" -print
+cat travel-easy-alerts.yaml
+```
+
+## nano
+
+```bash
+nano travel-easy-alerts.yaml
+```
+
+```bash
+nano YOUR-ACTUAL-ALERTMANAGER-CONFIG-FILENAME.yaml
+```
+
+---
+
+# 136. Final Checklist
+
+## Ubuntu
+
+```text
+[ ] Ubuntu EC2 available
+[ ] Java installed
+[ ] Jenkins installed
+[ ] Docker installed
+[ ] Git installed
+[ ] Trivy installed
+[ ] AWS CLI installed
+[ ] kubectl installed
+[ ] Helm installed
+[ ] SonarQube running
+```
+
+## GitHub
+
+```text
+[ ] Repository created
+[ ] main branch available
+[ ] Dockerfile committed
+[ ] Jenkinsfile committed
+[ ] requirements.txt committed
+[ ] sonar-project.properties committed
+[ ] k8s/deployment.yaml committed
+[ ] k8s/service.yaml committed
+[ ] No passwords committed
+[ ] No tokens committed
+[ ] No AWS keys committed
+```
+
+## Jenkins
+
+```text
+[ ] Jenkins accessible
+[ ] Required plugins installed
+[ ] Docker Hub credential configured
+[ ] SonarQube credential configured
+[ ] SonarQube server configured
+[ ] SonarScanner configured
+[ ] GitHub webhook configured
+[ ] Pipeline job created
+[ ] Pipeline successful
+[ ] Automatic trigger tested
+```
+
+## Docker
+
+```text
+[ ] Dockerfile tested
+[ ] Image built
+[ ] Container tested
+[ ] Trivy image scan completed
+[ ] Docker Hub push successful
+```
+
+## EKS
+
+```text
+[ ] EKS cluster available
+[ ] kubeconfig configured
+[ ] Worker nodes Ready
+[ ] travel-easy namespace created
+[ ] Deployment created
+[ ] Service created
+[ ] Pod Running
+[ ] LoadBalancer created
+[ ] Application accessible
+```
+
+## Monitoring
+
+```text
+[ ] monitoring namespace created
+[ ] Prometheus installed
+[ ] Grafana installed
+[ ] Alertmanager installed
+[ ] Node Exporter running
+[ ] kube-state-metrics running
+[ ] Prometheus targets checked
+[ ] Grafana dashboard checked
+```
+
+## Alerting
+
+```text
+[ ] travel-easy-alerts.yaml created with nano
+[ ] PrometheusRule applied
+[ ] AlertmanagerConfig created separately with nano
+[ ] AlertmanagerConfig applied in travel-easy namespace
+[ ] SMTP Secret created
+[ ] TravelEasyPodDown tested
+[ ] High CPU alert configured
+[ ] Pod restart alert configured
+[ ] Gmail notification tested
+[ ] Resolved notification tested
+```
+
+## Evidence
+
+```text
+[ ] Jenkins successful pipeline screenshot
+[ ] Jenkins stage screenshot
+[ ] Jenkins console screenshot
+[ ] SonarQube screenshot
+[ ] Trivy filesystem screenshot
+[ ] Trivy image screenshot
+[ ] Docker Hub screenshot
+[ ] EKS nodes screenshot
+[ ] EKS application screenshot
+[ ] Grafana dashboard screenshot
+[ ] Prometheus targets screenshot
+[ ] Prometheus alert screenshot
+[ ] Alertmanager screenshot
+[ ] Gmail alert screenshot
+```
+
+## Security
+
+```text
+[ ] No AWS credentials in GitHub
+[ ] No Docker Hub token in GitHub
+[ ] No GitHub token in GitHub
+[ ] No Gmail App Password in GitHub
+[ ] No Django SECRET_KEY in GitHub
+[ ] Kubernetes Secret used for SMTP password
+[ ] Jenkins Credentials used for Docker Hub
+[ ] IAM role used for Jenkins AWS access
+[ ] Previously exposed Gmail App Password revoked
+```
+
+## Before AWS Cleanup
+
+```text
+[ ] Final GitHub push completed
+[ ] Final screenshots saved
+[ ] Architecture diagram saved
+[ ] Resume information saved
+[ ] Jenkins evidence saved
+[ ] Monitoring evidence saved
+[ ] Alert evidence saved
+[ ] AWS resources reviewed
+[ ] EKS deletion confirmed if no longer required
+[ ] EC2 reviewed
+[ ] Load Balancer reviewed
+[ ] NAT Gateway reviewed
+[ ] Elastic IP reviewed
+[ ] EBS reviewed
+[ ] AWS Billing reviewed
+```
+
+# FINAL PROJECT FLOW
+
+```text
+GitHub
+   ↓
+GitHub Webhook
+   ↓
+Jenkins
+   ↓
+Python Setup
+   ↓
+Django Check + Test
+   ↓
+SonarQube
+   ↓
+Trivy Filesystem Scan
+   ↓
+Docker Build
+   ↓
+Trivy Image Scan
+   ↓
+Docker Hub
+   ↓
+AWS IAM Role
+   ↓
+Amazon EKS
+   ↓
+Kubernetes Deployment
+   ↓
+Travel Eazy Pod
+   ↓
+Kubernetes LoadBalancer Service
+   ↓
+Users
+
+Monitoring:
+
+EKS
+ ↓
+Prometheus
+ ↓
+Grafana
+
+Alerting:
+
+EKS
+ ↓
+PrometheusRule
+ ↓
+Alertmanager
+ ↓
+Gmail
+```
+
+# COMPLETE FILE SUMMARY
+
+```text
+GITHUB / CI-CD REPOSITORY
+│
+├── Dockerfile
+├── Jenkinsfile
+├── README-CICD.md
+├── requirements.txt
+├── sonar-project.properties
+├── manage.py
+├── db.sqlite3
+│
+├── app/
+├── dataset/
+├── project/
+├── static/
+├── templates/
+│
+└── k8s/
+    ├── deployment.yaml
+    └── service.yaml
+
+
+UBUNTU EC2 — MANUALLY CREATED MONITORING FILES
+│
+├── travel-easy-alerts.yaml
+│
+└── YOUR-ACTUAL-ALERTMANAGER-CONFIG-FILENAME.yaml
+
+
+KUBERNETES SECRET
+│
+└── alertmanager-smtp
+```
+
+# COMPLETE INSTALLED SOFTWARE
+
+```text
+Ubuntu EC2
+│
+├── Java JDK 21
+├── Jenkins
+├── Docker
+├── Git
+├── Trivy
+├── AWS CLI
+├── kubectl
+├── Helm
+└── SonarQube
+```
+
+# COMPLETE EKS SOFTWARE
+
+```text
+Amazon EKS
+│
+├── Travel Eazy
+├── Prometheus
+├── Grafana
+├── Alertmanager
+├── Node Exporter
+└── kube-state-metrics
+```
+
+# COMPLETE CI/CD TOOLS
+
+```text
+GitHub
+    ↓
+Jenkins
+    ↓
+SonarQube
+    ↓
+Trivy
+    ↓
+Docker
+    ↓
+Docker Hub
+    ↓
+Amazon EKS
+    ↓
+Prometheus
+    ↓
+Grafana
+    ↓
+Alertmanager
+    ↓
+Gmail
+```
