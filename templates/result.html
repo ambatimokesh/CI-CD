@@ -1,0 +1,116 @@
+{% extends "home.html" %}
+
+{% block title %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recommended Places</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2d3748;
+            margin-top: 50px;
+        }
+
+        /* Form Styling */
+        form {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        form button {
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background-color 0.3s ease;
+        }
+
+        form button:hover {
+            background-color: #45a049;
+        }
+
+        /* Recommendations List Styling */
+        .recommendations-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 30px;
+            padding: 0 20px;
+        }
+
+        .recommendation-card {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            width: 250px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .recommendation-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .recommendation-card h3 {
+            font-size: 18px;
+            margin: 0 0 10px;
+            color: #2d3748;
+        }
+
+        .recommendation-card p {
+            font-size: 14px;
+            color: #4a5568;
+            margin: 8px 0;
+        }
+
+        .recommendation-card .activities,
+        .recommendation-card .must-try-foods {
+            background-color: #edf2f7;
+            border-radius: 5px;
+            padding: 8px;
+            margin: 5px 0;
+            font-size: 13px;
+        }
+
+    </style>
+
+    <div>
+        <h1>Recommended Places</h1>
+        
+        
+        {% if recommendations %}
+        <div class="recommendations-container">
+            {% for recommendation in recommendations %}
+                <div class="recommendation-card">
+                    <h3>{{ recommendation.place }}</h3>
+                    <p><strong>Description:</strong> {{ recommendation.description }}</p>
+                    <div class="activities">
+                        <strong>Activities:</strong> {{ recommendation.activities }}
+                    </div>
+                    <div class="must-try-foods">
+                        <strong>Must-Try Foods:</strong> {{ recommendation.must_try_foods }}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        {% else %}
+            <p style="text-align: center; color: #4a5568;">No recommendations available yet. Please try again.</p>
+        {% endif %}
+    </div>
+{% endblock %}

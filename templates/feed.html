@@ -1,0 +1,40 @@
+{% extends "home.html" %}
+{% block title %}
+
+    <!-- testimonial_area  -->
+    <div class="testimonial_area">
+        <div class="container">
+            <div class="row">
+                <div class="col-xl-12">
+                    <div class="testmonial_active owl-carousel">
+                        {% for i in feed %}
+                        <div class="single_carousel">
+                            <div class="row justify-content-center">
+
+                                <div class="col-lg-8">
+                                    <div class="single_testmonial text-center">
+                                      
+                                        <div class="author_thumb">
+                                           
+                                            <img src="#" alt="">
+                                        </div>
+                                        
+                                        
+                                        <p>{{i.feedback}}</p>
+                                        <div class="testmonial_author">
+                                            <h3>- {{i.email}} </h3>
+                                        </div>
+                                        
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                       {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- /testimonial_area  -->
+
+    {% endblock %}

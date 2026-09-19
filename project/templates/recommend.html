@@ -1,0 +1,237 @@
+{% extends 'home.html' %}
+{% block title %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        /* General Reset */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #edf2f7;
+            font-family: 'Arial', sans-serif;
+        }
+
+        /* Form Section Styling */
+        .form-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 10px;
+            max-width: 750px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-title {
+            font-size: 28px;
+            color: #2d3748;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        /* Form Styling */
+        .travel-form {
+            width: 100%;
+            max-width: 700px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-weight: bold;
+            color: #2d3748;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        /* Input Fields and Select Styling */
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e0;
+            font-size: 14px;
+            color: #2d3748;
+            margin-top: 5px;
+        }
+
+        /* Focus States for Input/Select Elements */
+        input:focus, select:focus, button:focus {
+            border-color: #4a90e2;
+            outline: none;
+        }
+
+        /* Button Styling */
+        .submit-button {
+            background-color: #2d3748;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            margin-top: 20px;
+        }
+
+        .submit-button:hover {
+            background-color: #1a202c;
+        }
+
+        /* Fieldset Styling for Grouped Inputs */
+        fieldset {
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        legend {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2d3748;
+            padding: 0 10px;
+        }
+
+        /* Styling for Radio Buttons and Checkboxes */
+        .radio-group label, .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            color: #4a5568;
+        }
+
+        .radio-group input, .form-group input {
+            margin-right: 10px;
+        }
+
+        /* Styling for Option Elements in Select */
+        .form-group select option {
+            padding: 10px;
+        }
+
+        /* Adjustments for Specific Form Sections */
+        .form-group select, .form-group input {
+            background-color: #ffffff;
+            border: 1px solid #cbd5e0;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+    </style>
+</head>
+
+
+<body>
+    <div>
+        <section class="form-section">
+            <h1 class="form-title">Travel Preferences Form</h1>
+            <form action="{% url 'recommend' %}" method="POST" class="travel-form">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="age">Age:</label>
+                    <input type="number" id="age" name="age" min="18" max="100" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="gender">Gender:</label>
+                    <select id="gender" name="gender">
+                        <option value="select">Select the option</option>
+                        <option value="0">Male</option>
+                        <option value="1">Female</option>
+                        <option value="2">Other</option>
+                        <option value="3">Prefer not to say</option>
+                    </select>
+                </div>
+
+                <fieldset class="form-group">
+                    <legend>Health Conditions (Select all that apply):</legend>
+                    <label><input type="checkbox" name="health_conditions" value="Asthma"> Asthma</label>
+                    <label><input type="checkbox" name="health_conditions" value="COPD"> COPD</label>
+                    <label><input type="checkbox" name="health_conditions" value="Allergies"> Allergies</label>
+                    <label><input type="checkbox" name="health_conditions" value="Hypertension"> Hypertension</label>
+                    <label><input type="checkbox" name="health_conditions" value="Heart Disease"> Heart Disease</label>
+                </fieldset>
+
+                <div class="form-group">
+                    <label for="climate">Climate Preference:</label>
+                    <div class="radio-group">
+                        <label><input type="radio" id="hot" name="climate" value="0"> Hot</label>
+                        <label><input type="radio" id="cold" name="climate" value="1"> Cold</label>
+                        <label><input type="radio" id="moderate" name="climate" value="2"> Moderate</label>
+                        <label><input type="radio" id="no_preference" name="climate" value="3"> No Preference</label>
+                    </div>
+                </div>
+
+                <fieldset class="form-group">
+                    <legend>Activity Type (Select all that interest you):</legend>
+                    <label><input type="checkbox" name="activities" value="Adventure"> Adventure (Trekking, Paragliding)</label>
+                    <label><input type="checkbox" name="activities" value="Relaxation"> Relaxation (Beaches, Spas)</label>
+                    <label><input type="checkbox" name="activities" value="Cultural"> Cultural (Historical Sites, Temples)</label>
+                </fieldset>
+
+                <div class="form-group">
+                    <label for="budget">Travel Budget:</label>
+                    <select id="budget" name="budget">
+                        <option value="select">Select the option</option>
+                        <option value="0">Low</option>
+                        <option value="1">Medium</option>
+                        <option value="2">High</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="time_available">Time Available:</label>
+                    <select id="time_available" name="time_available">
+                        <option value="select">Select the option</option>
+                        <option value="0">Weekend trip (1-2 days)</option>
+                        <option value="1">Short trip (3-4 days)</option>
+                        <option value="2">Week-long (5-7 days)</option>
+                        <option value="3">Extended stay (8+ days)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="current_location">Current Location:</label>
+                    <select id="current_location" name="current_location">
+                        <option value="select">Select the option</option>
+                        <option value="0">Mumbai</option>
+                        <option value="1">Delhi</option>
+                        <option value="2">Bengaluru</option>
+                        <option value="3">Kolkata</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="companions">Travel Companions:</label>
+                    <select id="companions" name="companions">
+                        <option value="select">Select the option</option>
+                        <option value="0">Solo</option>
+                        <option value="1">Couple</option>
+                        <option value="2">Family</option>
+                        <option value="3">Friends</option>
+                        <option value="4">Other</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="submit-button">Submit</button>
+            </form>
+        </section>
+    </div>
+{% endblock %}
