@@ -3,45 +3,57 @@ kind: Deployment
 metadata:
   name: travel-easy
   namespace: travel-easy
+
 spec:
   replicas: 1
+
   selector:
     matchLabels:
       app: travel-easy
+
   template:
     metadata:
       labels:
         app: travel-easy
+
     spec:
       containers:
-      - name: travel-easy
-        image: mokeshambati/travel-easy:latest
-        ports:
-        - containerPort: 8000
-        env:
-        - name: DJANGO_DEBUG
-          value: "False"
-        - name: DJANGO_ALLOWED_HOSTS
-          value: "REPLACE_WITH_LOAD_BALANCER_HOSTNAME"
-        - name: DJANGO_SECRET_KEY
-          valueFrom:
-            secretKeyRef:
-              name: travel-easy-secret
-              key: django-secret-key
-        readinessProbe:
-          tcpSocket:
-            port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 10
-        livenessProbe:
-          tcpSocket:
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 20
-        resources:
-          requests:
-            cpu: 250m
-            memory: 512Mi
-          limits:
-            cpu: 1000m
-            memory: 1Gi
+        - name: travel-easy
+          image: mokeshambati/travel-easy:latest
+
+          ports:
+            - containerPort: 8000
+
+          env:
+            - name: DJANGO_DEBUG
+              value: "False"
+
+            - name: DJANGO_ALLOWED_HOSTS
+              value: "*"
+
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: travel-easy-secret
+                  key: django-secret-key
+
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+
+            limits:
+              cpu: 1000m
+              memory: 1Gi

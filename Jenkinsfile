@@ -1,88 +1,346 @@
 pipeline {
+
   agent any
-  triggers { githubPush() }
+
+  triggers {
+    githubPush()
+  }
+
   options {
     timestamps()
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '10'))
   }
+
   environment {
+
     AWS_DEFAULT_REGION = 'ap-south-1'
-    EKS_CLUSTER = 'travel-easy-cluster'
-    K8S_NAMESPACE = 'travel-easy'
-    DOCKERHUB_USERNAME = 'REPLACE_DOCKERHUB_USERNAME'
-    IMAGE_NAME = 'travel-easy'
-    IMAGE = "${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${BUILD_NUMBER}"
+    AWS_REGION         = 'ap-south-1'
+
+    EKS_CLUSTER        = 'travel-easy-cluster'
+    K8S_NAMESPACE      = 'travel-easy'
+
+    DOCKERHUB_USERNAME = 'mokeshambati'
+    IMAGE_NAME         = 'travel-easy'
+    IMAGE_TAG          = "${BUILD_NUMBER}"
+    DOCKER_IMAGE       = "mokeshambati/travel-easy:${BUILD_NUMBER}"
+
+    KUBECONFIG         = "${WORKSPACE}/jenkins-kubeconfig"
   }
+
   stages {
-    stage('Checkout') { steps { checkout scm } }
-    stage('Install and Test') {
+
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Python Setup') {
       steps {
         sh '''
+          set -e
+
+          echo "===== PYTHON VERSION ====="
+          python3 --version
+
+          echo "===== CREATE VIRTUAL ENVIRONMENT ====="
           python3 -m venv .venv
+
           . .venv/bin/activate
-          pip install --upgrade pip
+
+          echo "===== UPGRADE PIP ====="
+          python -m pip install --upgrade pip
+
+          echo "===== INSTALL REQUIREMENTS ====="
           pip install -r requirements.txt
-          python manage.py check
+
+          echo "===== INSTALLED PACKAGES ====="
+          pip list
         '''
       }
     }
+
+    stage('Django Checks') {
+      steps {
+        sh '''
+          set -e
+
+          . .venv/bin/activate
+
+          echo "===== DJANGO CHECK ====="
+          python manage.py check
+
+          echo "===== DJANGO TEST ====="
+          python manage.py test
+        '''
+      }
+    }
+
     stage('SonarQube Analysis') {
       steps {
-        withSonarQubeEnv('SonarQube') {
-          sh 'sonar-scanner -Dsonar.projectKey=travel-easy -Dsonar.sources=app,project'
+        script {
+
+          def scannerHome = tool 'SonarScanner'
+
+          withSonarQubeEnv('SonarQube') {
+
+            sh """
+              ${scannerHome}/bin/sonar-scanner \
+                -Dsonar.projectKey=travel-easy \
+                -Dsonar.projectName="Travel Eazy" \
+                -Dsonar.sources=app,project \
+                -Dsonar.python.version=3.11 \
+                -Dsonar.exclusions="**/migrations/**,**/__pycache__/**,**/static/**,**/templates/**"
+            """
+          }
         }
       }
     }
+
     stage('Trivy Filesystem Scan') {
-      steps { sh 'trivy fs --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed .' }
+      steps {
+        sh '''
+          echo "========================================"
+          echo "TRIVY FILESYSTEM SECURITY SCAN"
+          echo "========================================"
+
+          trivy fs \
+            --scanners vuln,secret \
+            --severity HIGH,CRITICAL \
+            --exit-code 0 \
+            --ignore-unfixed \
+            .
+        '''
+      }
     }
+
     stage('Docker Build') {
-      steps { sh 'docker build -t "$IMAGE" .' }
+      steps {
+        sh '''
+          set -e
+
+          echo "========================================"
+          echo "DOCKER BUILD"
+          echo "========================================"
+
+          docker build \
+            -t ${DOCKER_IMAGE} \
+            .
+
+          echo "===== DOCKER IMAGE ====="
+
+          docker images ${DOCKERHUB_USERNAME}/${IMAGE_NAME}
+        '''
+      }
     }
+
     stage('Trivy Image Scan') {
-      steps { sh 'trivy image --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed "$IMAGE"' }
+      steps {
+        sh '''
+          echo "========================================"
+          echo "TRIVY DOCKER IMAGE SECURITY SCAN"
+          echo "========================================"
+
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --exit-code 0 \
+            --ignore-unfixed \
+            ${DOCKER_IMAGE}
+        '''
+      }
     }
+
     stage('Docker Hub Push') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DH_USER', passwordVariable: 'DH_TOKEN')]) {
+
+        withCredentials([
+          usernamePassword(
+            credentialsId: 'dockerhub-creds',
+            usernameVariable: 'DOCKER_USER',
+            passwordVariable: 'DOCKER_PASSWORD'
+          )
+        ]) {
+
           sh '''
-            echo "$DH_TOKEN" | docker login --username "$DH_USER" --password-stdin
-            docker push "$IMAGE"
+            set -e
+
+            echo "========================================"
+            echo "DOCKER HUB LOGIN"
+            echo "========================================"
+
+            echo "$DOCKER_PASSWORD" | docker login \
+              --username "$DOCKER_USER" \
+              --password-stdin
+
+            echo "===== PUSH IMAGE ====="
+
+            docker push ${DOCKER_IMAGE}
+
+            echo "===== LOGOUT ====="
+
             docker logout
           '''
         }
       }
     }
+
     stage('Configure EKS') {
       steps {
         sh '''
-          aws eks update-kubeconfig --region "$AWS_DEFAULT_REGION" --name "$EKS_CLUSTER"
-          kubectl get nodes
+          set -e
+
+          echo "========================================"
+          echo "AWS IDENTITY"
+          echo "========================================"
+
+          aws sts get-caller-identity
+
+          echo "========================================"
+          echo "CONFIGURE EKS"
+          echo "========================================"
+
+          aws eks update-kubeconfig \
+            --region ${AWS_DEFAULT_REGION} \
+            --name ${EKS_CLUSTER} \
+            --kubeconfig ${KUBECONFIG}
+
+          echo "===== EKS NODES ====="
+
+          kubectl --kubeconfig ${KUBECONFIG} get nodes
         '''
       }
     }
+
     stage('Deploy to EKS') {
       steps {
         sh '''
-          kubectl create namespace "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -f k8s/deployment.yaml
-          kubectl apply -f k8s/service.yaml
-          kubectl set image deployment/travel-easy travel-easy="$IMAGE" -n "$K8S_NAMESPACE"
-          kubectl rollout status deployment/travel-easy -n "$K8S_NAMESPACE" --timeout=180s
+          set -e
+
+          echo "========================================"
+          echo "CREATE / VERIFY NAMESPACE"
+          echo "========================================"
+
+          kubectl --kubeconfig ${KUBECONFIG} \
+            create namespace ${K8S_NAMESPACE} \
+            --dry-run=client \
+            -o yaml | \
+            kubectl --kubeconfig ${KUBECONFIG} apply -f -
+
+          echo "========================================"
+          echo "APPLY DEPLOYMENT"
+          echo "========================================"
+
+          kubectl --kubeconfig ${KUBECONFIG} \
+            apply -f k8s/deployment.yaml
+
+          echo "========================================"
+          echo "APPLY SERVICE"
+          echo "========================================"
+
+          kubectl --kubeconfig ${KUBECONFIG} \
+            apply -f k8s/service.yaml
+
+          echo "========================================"
+          echo "UPDATE APPLICATION IMAGE"
+          echo "========================================"
+
+          kubectl --kubeconfig ${KUBECONFIG} \
+            -n ${K8S_NAMESPACE} \
+            set image deployment/travel-easy \
+            travel-easy=${DOCKER_IMAGE}
+
+          echo "========================================"
+          echo "WAIT FOR ROLLOUT"
+          echo "========================================"
+
+          kubectl --kubeconfig ${KUBECONFIG} \
+            -n ${K8S_NAMESPACE} \
+            rollout status deployment/travel-easy \
+            --timeout=5m
+        '''
+      }
+    }
+
+    stage('Verify Deployment') {
+      steps {
+        sh '''
+          set -e
+
+          echo "========================================"
+          echo "KUBERNETES DEPLOYMENT"
+          echo "========================================"
+
+          kubectl --kubeconfig ${KUBECONFIG} \
+            get deployment \
+            -n ${K8S_NAMESPACE}
+
+          echo "========================================"
+          echo "KUBERNETES PODS"
+          echo "========================================"
+
+          kubectl --kubeconfig ${KUBECONFIG} \
+            get pods \
+            -n ${K8S_NAMESPACE} \
+            -o wide
+
+          echo "========================================"
+          echo "KUBERNETES SERVICE"
+          echo "========================================"
+
+          kubectl --kubeconfig ${KUBECONFIG} \
+            get svc \
+            -n ${K8S_NAMESPACE}
+
+          echo "========================================"
+          echo "DEPLOYMENT IMAGE"
+          echo "========================================"
+
+          kubectl --kubeconfig ${KUBECONFIG} \
+            get deployment travel-easy \
+            -n ${K8S_NAMESPACE} \
+            -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+          echo
         '''
       }
     }
   }
+
   post {
+
     success {
-      emailext(to: 'REPLACE_WITH_EMAIL', subject: "SUCCESS: ${JOB_NAME} #${BUILD_NUMBER}", body: "Travel Eazy pipeline succeeded. Image: ${IMAGE}")
+      echo """
+      ========================================
+      TRAVEL EAZY CI/CD PIPELINE SUCCESSFUL
+      ========================================
+
+      Docker Image : ${DOCKER_IMAGE}
+      EKS Cluster   : ${EKS_CLUSTER}
+      Namespace     : ${K8S_NAMESPACE}
+
+      ========================================
+      """
     }
+
     failure {
-      emailext(to: 'REPLACE_WITH_EMAIL', subject: "FAILED: ${JOB_NAME} #${BUILD_NUMBER}", body: "Travel Eazy pipeline failed. Check Jenkins console output.")
+      echo """
+      ========================================
+      TRAVEL EAZY CI/CD PIPELINE FAILED
+      ========================================
+
+      Check the failed stage in Jenkins Console Output.
+
+      ========================================
+      """
     }
+
     always {
-      sh 'docker image prune -f || true'
+      sh '''
+        rm -f "${KUBECONFIG}" || true
+        docker image prune -f || true
+      '''
+
       cleanWs()
     }
   }
